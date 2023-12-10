@@ -1,14 +1,17 @@
-// Bevy code commonly triggers these lints and they may be important signals
-// about code quality. They are sometimes hard to avoid though, and the CI
-// workflow treats them as errors, so this allows them throughout the project.
-// Feel free to delete this line.
-#![allow(clippy::too_many_arguments, clippy::type_complexity)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::type_complexity,
+    unused_imports,
+    non_snake_case,
+    unused_mut
+)]
 
 use bevy::{
     diagnostic::FrameTimeDiagnosticsPlugin,
     prelude::*,
     window::{PresentMode, WindowMode, WindowTheme},
 };
+use bevy_ecs_ldtk::{LdtkPlugin, LdtkWorldBundle, LevelSelection};
 //use space_editor::{simple_editor_setup, SpaceEditorPlugin};
 fn main() {
     App::new()
@@ -33,17 +36,24 @@ fn main() {
                     .set(ImagePlugin::default_nearest()),
                 //            LogDiagnosticsPlugin::default(),
                 FrameTimeDiagnosticsPlugin,
+                LdtkPlugin,
             ), //            SpaceEditorPlugin::default(),
         )
         .add_systems(Startup, setup)
         //        .add_systems(Startup, simple_editor_setup)
+        .insert_resource(LevelSelection::Identifier("Level_0".to_owned()))
         .run();
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn(Camera2dBundle::default());
-    commands.spawn(SpriteBundle {
-        texture: asset_server.load("ducky.png"),
+    let mut camera = Camera2dBundle::default();
+    //    camera.projection.scale = 0.5;
+    //    camera.transform.translation.x += 1280.0 / 4.0;
+    //    camera.transform.translation.y += 720.0 / 4.0;
+    commands.spawn(camera);
+
+    commands.spawn(LdtkWorldBundle {
+        ldtk_handle: asset_server.load("ldtk/Therac2D.ldtk"),
         ..Default::default()
     });
 }
