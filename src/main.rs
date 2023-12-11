@@ -18,7 +18,7 @@ use bevy::{
     winit::WinitWindows,
 };
 use bevy_ecs_ldtk::{
-    app::LdtkEntityAppExt, LdtkEntity, LdtkPlugin, LdtkWorldBundle, LevelSelection,
+    app::LdtkEntityAppExt, GridCoords, LdtkEntity, LdtkPlugin, LdtkWorldBundle, LevelSelection,
 };
 //use space_editor::{simple_editor_setup, SpaceEditorPlugin};
 fn main() {
@@ -52,16 +52,26 @@ fn main() {
             ), //            SpaceEditorPlugin::default(),
         )
         .add_systems(Startup, (setup, query_prim_window))
-        .add_systems(Update, set_camera_viewports)
+        .add_systems(
+            Update,
+            (system, update_config, set_camera_viewports, camera_follow),
+        )
         //        .add_systems(Startup, simple_editor_setup)
         .insert_resource(LevelSelection::Identifier("Level_0".to_owned()))
         .register_ldtk_entity::<PlayerBundle>("The_player")
         .run();
 }
+
+#[derive(Default, Component)]
+struct Player;
+
 #[derive(Default, Bundle, LdtkEntity)]
 struct PlayerBundle {
+    player: Player,
     #[sprite_sheet_bundle]
-    sprite_sheet_bundle: SpriteSheetBundle,
+    sprite_bundle: SpriteSheetBundle,
+    #[grid_coords]
+    grid_coords: GridCoords,
 }
 
 fn query_prim_window(
@@ -109,9 +119,13 @@ fn setup(
     //    bevy::log::debug!("{:?}", camera.transform);
     //    bevy::log::debug!("{:?}", camera.global_transform);
     let mut camera3d = Camera3dBundle::default();
-    //    camera2d.projection.scale = 0.5;
-    //camera2d.transform.translation.x += 1920.0 / 6.0 + 40.0;
-    //camera2d.transform.translation.y += 1080.0 / 4.0; // += 720.0; // / 4.0;
+    camera2d.projection.scale = 0.5;
+    /*
+
+    camera2d.transform.translation.x += 1920.0 / 6.0 + 40.0;
+    camera2d.transform.translation.y += 1080.0 / 4.0; // += 720.0; // / 4.0;
+    */
+
     let mut window = q_different.single_mut();
     //    camera2d.camera.physical_target_size();
     let mut raw_window = windows.get_window(q_primary.single()).unwrap();
@@ -120,12 +134,22 @@ fn setup(
     //    let wat = camera2d.camera.target;
 
     //    bevy::log::info!("2d camera default render target {:?}", wat);
-    camera2d.transform.look_at(Vec3::ZERO, Vec3::Y);
+    /*    camera2d.transform.look_at(
+        Vec3 {
+            x: window.resolution.physical_width() as f32 / 2.0,
+            y: window.resolution.physical_height() as f32 / 2.0,
+            z: 0.0,
+        },
+        Vec3::Y,
+    );
+    */
+    camera2d.transform.translation.x += window.resolution.physical_width() as f32 / 16.0;
+    camera2d.transform.translation.y += window.resolution.physical_height() as f32 / 16.0;
     camera2d.camera.viewport = Some(Viewport {
-        physical_position: UVec2 { x: 0, y: 0 },
+        physical_position: UVec2 { x: 0, y: 1480 },
         physical_size: UVec2 {
-            x: 1920 / 4,
-            y: 1080 / 4,
+            x: window.resolution.physical_width() / 4,
+            y: window.resolution.physical_height() / 4,
         },
         ..default()
     });
@@ -146,6 +170,7 @@ fn setup(
 fn set_camera_viewports(
     windows: Query<&Window>,
     mut resize_events: EventReader<WindowResized>,
+    mut window_move_events: EventReader<WindowMoved>,
     mut camera2d: Query<&mut Camera, (With<MyCamera2D>, Without<MyCamera3D>)>,
     mut camera3d: Query<&mut Camera, With<MyCamera3D>>,
 ) {
@@ -157,22 +182,92 @@ fn set_camera_viewports(
         let mut camera2d = camera2d.single_mut();
         camera2d.viewport = Some(Viewport {
             physical_position: UVec2::new(0, 0),
-            physical_size: UVec2::new(
-                window.resolution.physical_width() / 4,
-                window.resolution.physical_height() / 4,
-            ),
+            physical_size: UVec2 {
+                x: window.resolution.physical_width() / 4,
+                y: window.resolution.physical_height() / 4,
+            },
             ..default()
         });
-        /*
-        let mut right_camera = right_camera.single_mut();
-        right_camera.viewport = Some(Viewport {
-            physical_position: UVec2::new(window.resolution.physical_width() / 2, 0),
-            physical_size: UVec2::new(
-                window.resolution.physical_width() / 2,
-                window.resolution.physical_height(),
-            ),
+    }
+    for move_event in window_move_events.read() {
+        let window = windows.get(move_event.entity).unwrap();
+        let mut camera2d = camera2d.single_mut();
+        camera2d.viewport = Some(Viewport {
+            physical_position: UVec2::new(0, 0),
+            physical_size: UVec2 {
+                x: window.resolution.physical_width() / 4,
+                y: window.resolution.physical_height() / 4,
+            },
             ..default()
         });
-        */
+    }
+
+    /*
+    let mut right_camera = right_camera.single_mut();
+    right_camera.viewport = Some(Viewport {
+        physical_position: UVec2::new(window.resolution.physical_width() / 2, 0),
+        physical_size: UVec2::new(
+            window.resolution.physical_width() / 2,
+            window.resolution.physical_height(),
+        ),
+        ..default()
+    });
+    */
+}
+fn system(mut gizmos: Gizmos, time: Res<Time>) {
+    let sin = time.elapsed_seconds().sin() * 50.;
+    gizmos.line_2d(Vec2::Y * -sin, Vec2::splat(-80.), Color::RED);
+    gizmos.ray_2d(Vec2::Y * sin, Vec2::splat(80.), Color::GREEN);
+
+    // Triangle
+    gizmos.linestrip_gradient_2d([
+        (Vec2::Y * 300., Color::BLUE),
+        (Vec2::new(-255., -155.), Color::RED),
+        (Vec2::new(255., -155.), Color::GREEN),
+        (Vec2::Y * 300., Color::BLUE),
+    ]);
+
+    gizmos.rect_2d(
+        Vec2::ZERO,
+        time.elapsed_seconds() / 3.,
+        Vec2::splat(300.),
+        Color::BLACK,
+    );
+
+    // The circles have 32 line-segments by default.
+    gizmos.circle_2d(Vec2::ZERO, 120., Color::BLACK);
+    // You may want to increase this for larger circles.
+    gizmos.circle_2d(Vec2::ZERO, 300., Color::NAVY).segments(64);
+
+    // Arcs default amount of segments is linearly interpolated between
+    // 1 and 32, using the arc length as scalar.
+    gizmos.arc_2d(
+        Vec2::ZERO,
+        sin / 10.,
+        std::f32::consts::PI / 2.,
+        350.,
+        Color::ORANGE_RED,
+    );
+}
+
+fn update_config(mut config: ResMut<GizmoConfig>, keyboard: Res<Input<KeyCode>>, time: Res<Time>) {
+    if keyboard.pressed(KeyCode::Right) {
+        config.line_width += 5. * time.delta_seconds();
+    }
+    if keyboard.pressed(KeyCode::Left) {
+        config.line_width -= 5. * time.delta_seconds();
+    }
+}
+fn camera_follow(
+    players: Query<(&Player, &mut Transform), (Without<MyCamera2D>)>,
+    mut cameras: Query<&mut Transform, (With<MyCamera2D>, Without<MyCamera3D>)>,
+) {
+    for (player, player_transform) in &players {
+        let pos = player_transform.translation;
+
+        for mut transform in &mut cameras {
+            transform.translation.x = pos.x;
+            transform.translation.y = pos.y;
+        }
     }
 }
