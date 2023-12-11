@@ -1,4 +1,9 @@
-#![allow(clippy::too_many_arguments, clippy::type_complexity, non_snake_case)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::type_complexity,
+    non_snake_case,
+    unused_parens
+)]
 
 use bevy::{
     diagnostic::FrameTimeDiagnosticsPlugin,
@@ -39,8 +44,8 @@ fn main() {
                 LdtkPlugin,
             ), //            SpaceEditorPlugin::default(),
         )
-        .add_systems(Startup, setup)
-        .add_systems(Update, (set_camera_viewports, camera_follow))
+        .add_systems(Startup, (setup,))
+        .add_systems(Update, (set_camera_viewports, camera_follow, hint_color))
         //        .add_systems(Startup, simple_editor_setup)
         .insert_resource(LevelSelection::Identifier("Level_0".to_owned()))
         .register_ldtk_entity::<PlayerBundle>("ThePlayer")
@@ -57,53 +62,70 @@ fn main() {
 
 #[derive(Default, Bundle, LdtkEntity)]
 struct TheBusStopBundle {
+    interactive: Interactive,
     #[sprite_sheet_bundle]
     sprite_sheet_bundle: SpriteSheetBundle,
 }
 
 #[derive(Default, Bundle, LdtkEntity)]
 struct ToiletBundle {
+    interactive: Interactive,
     #[sprite_sheet_bundle]
     sprite_sheet_bundle: SpriteSheetBundle,
 }
 #[derive(Default, Bundle, LdtkEntity)]
 struct ShowerBundle {
+    interactive: Interactive,
     #[sprite_sheet_bundle]
     sprite_sheet_bundle: SpriteSheetBundle,
 }
 
 #[derive(Default, Bundle, LdtkEntity)]
 struct RatBundle {
+    actor: Actor,
+    interactive: Interactive,
     #[sprite_sheet_bundle]
     sprite_sheet_bundle: SpriteSheetBundle,
 }
 #[derive(Default, Bundle, LdtkEntity)]
 struct BatBundle {
+    actor: Actor,
+    interactive: Interactive,
     #[sprite_sheet_bundle]
     sprite_sheet_bundle: SpriteSheetBundle,
 }
 #[derive(Default, Bundle, LdtkEntity)]
 struct CoinDoorBundle {
+    interactive: Interactive,
     #[sprite_sheet_bundle]
     sprite_sheet_bundle: SpriteSheetBundle,
 }
 
 #[derive(Default, Bundle, LdtkEntity)]
 struct BrokenCoinDoorBundle {
+    interactive: Interactive,
     #[sprite_sheet_bundle]
     sprite_sheet_bundle: SpriteSheetBundle,
 }
 
 #[derive(Default, Bundle, LdtkEntity)]
 struct SoiledMattressBundle {
+    interactive: Interactive,
     #[sprite_sheet_bundle]
     sprite_sheet_bundle: SpriteSheetBundle,
 }
 
 #[derive(Default, Component)]
+struct Interactive;
+#[derive(Default, Component)]
+struct Actor;
+
+#[derive(Default, Component)]
 struct Player;
 #[derive(Default, Bundle, LdtkEntity)]
 struct PlayerBundle {
+    actor: Actor,
+    interactive: Interactive,
     player: Player,
     #[sprite_sheet_bundle]
     sprite_bundle: SpriteSheetBundle,
@@ -119,7 +141,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let mut camera2d = Camera2dBundle::default();
 
     let camera3d = Camera3dBundle::default();
-    camera2d.projection.scale = 0.25;
+    camera2d.projection.scale = 0.5;
 
     camera2d.camera.order = 1;
 
@@ -179,5 +201,19 @@ fn camera_follow(
             transform.translation.x = pos.x;
             transform.translation.y = pos.y;
         }
+    }
+}
+
+fn hint_color(
+    mut actors: Query<(&Actor, &mut Sprite), (With<Actor>)>,
+    mut items: Query<(&Interactive, &mut Sprite), (Without<Actor>)>,
+) {
+    for (_actor, mut actor_sprite) in &mut actors {
+        let res = actor_sprite.color.set(Box::new(Color::TOMATO));
+        bevy::log::info!("{:?}", res);
+    }
+    for (_item, mut item_sprite) in &mut items {
+        let res = item_sprite.color.set(Box::new(Color::AZURE));
+        bevy::log::info!("{:?}", res);
     }
 }
