@@ -12,7 +12,9 @@ use bevy::{
     window::{PresentMode, WindowMode, WindowResized, WindowResolution, WindowTheme},
 };
 use bevy_ecs_ldtk::{
-    app::LdtkEntityAppExt, GridCoords, LdtkEntity, LdtkPlugin, LdtkWorldBundle, LevelSelection,
+    app::LdtkEntityAppExt,
+    ldtk::{LayerDefinition, LayerInstance, TileInstance},
+    GridCoords, LayerMetadata, LdtkEntity, LdtkPlugin, LdtkWorldBundle, LevelSelection,
 };
 //use space_editor::{simple_editor_setup, SpaceEditorPlugin};
 fn main() {
@@ -44,7 +46,7 @@ fn main() {
                 LdtkPlugin,
             ), //            SpaceEditorPlugin::default(),
         )
-        .add_systems(Startup, (setup,))
+        .add_systems(Startup, (setup))
         .add_systems(Update, (set_camera_viewports, camera_follow, hint_color))
         //        .add_systems(Startup, simple_editor_setup)
         .insert_resource(LevelSelection::Identifier("Level_0".to_owned()))
@@ -205,15 +207,31 @@ fn camera_follow(
 }
 
 fn hint_color(
-    mut actors: Query<(&Actor, &mut Sprite), (With<Actor>)>,
-    mut items: Query<(&Interactive, &mut Sprite), (Without<Actor>)>,
+    mut actors: Query<(&Actor, &mut TextureAtlasSprite), (With<Actor>)>,
+    mut items: Query<(&Interactive, &mut TextureAtlasSprite), (Without<Actor>)>,
+    /* this matched background sprite only..
+    mut rest: Query<(&mut Sprite), (Without<Actor>, Without<Interactive>)>,
+    */
+    /* this matched nothing
+    mut rest: Query<(&mut TextureAtlasSprite), (Without<Actor>, Without<Interactive>)>,
+    */
 ) {
     for (_actor, mut actor_sprite) in &mut actors {
-        let res = actor_sprite.color.set(Box::new(Color::TOMATO));
-        bevy::log::info!("{:?}", res);
+        if (actor_sprite.color != Color::CRIMSON) {
+            let res = actor_sprite.color.set(Box::new(Color::CRIMSON));
+            bevy::log::info!("{:?}", res);
+        }
     }
     for (_item, mut item_sprite) in &mut items {
-        let res = item_sprite.color.set(Box::new(Color::AZURE));
-        bevy::log::info!("{:?}", res);
+        if (item_sprite.color != Color::CYAN) {
+            let res = item_sprite.color.set(Box::new(Color::CYAN));
+            bevy::log::info!("{:?}", res);
+        }
     }
+    /*
+    for mut other_sprite in &mut rest {
+        bevy::log::info!("{:?}", other_sprite);
+        other_sprite.color = Color::BLACK;
+    }
+    */
 }
