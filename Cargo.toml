@@ -21,6 +21,7 @@ bevy_ecs_ldtk = { version = "0.8", git = "https://github.com/trouv/bevy_ecs_ldtk
 space_editor = { git = "https://github.com/rewin123/space_editor.git", tag="v0.2.3" }
 bevy_adventure = "0.6.0"
 bevy_hanabi = "0.8"
+bevy_egui = "0.24"
 [patch.crates-io]
 bevy_ecs_tilemap = { git = "https://github.com/divark/bevy_ecs_tilemap", branch = "0.12-fixes" }
 
