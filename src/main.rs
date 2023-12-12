@@ -5,16 +5,17 @@
     unused_parens
 )]
 
+mod game_riir;
+
 use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
     render::camera::Viewport,
     window::{PresentMode, WindowMode, WindowResized, WindowResolution, WindowTheme},
 };
-use bevy_ecs_ldtk::{
-    app::LdtkEntityAppExt, GridCoords, LdtkEntity, LdtkPlugin, LdtkWorldBundle, LevelSelection,
-};
+use bevy_ecs_ldtk::{app::LdtkEntityAppExt, LdtkPlugin, LdtkWorldBundle, LevelSelection};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
+use game_riir::data::*;
 //use space_editor::{simple_editor_setup, SpaceEditorPlugin};
 fn main() {
     App::new()
@@ -56,7 +57,11 @@ fn main() {
         .register_ldtk_entity::<PlayerBundle>("ThePlayer")
         .register_ldtk_entity::<RatBundle>("Rat")
         .register_ldtk_entity::<BatBundle>("Bat")
-        .register_ldtk_entity::<TheBusStopBundle>("TheBusStop")
+        .register_ldtk_entity::<TravelPointBundle>("TravelPoint")
+        .register_ldtk_entity::<TranslucentShieldingBundle>("TranslucentShielding")
+        .register_ldtk_entity::<TheracLinacBundle>("TheracLinac")
+        .register_ldtk_entity::<TheracVTBundle>("TheracVT")
+        .register_ldtk_entity::<TheracPDP11Bundle>("TheracPDP11")
         .register_ldtk_entity::<ShowerBundle>("Shower")
         .register_ldtk_entity::<ToiletBundle>("Toilet")
         .register_ldtk_entity::<SoiledMattressBundle>("SoiledMattress")
@@ -75,86 +80,6 @@ fn egui_fps(mut contexts: EguiContexts, diagnostics: Res<DiagnosticsStore>) {
     }
 }
 
-#[derive(Default, Bundle, LdtkEntity)]
-struct TheBusStopBundle {
-    interactive: Interactive,
-    #[sprite_sheet_bundle]
-    sprite_sheet_bundle: SpriteSheetBundle,
-}
-
-#[derive(Default, Bundle, LdtkEntity)]
-struct ToiletBundle {
-    interactive: Interactive,
-    #[sprite_sheet_bundle]
-    sprite_sheet_bundle: SpriteSheetBundle,
-}
-#[derive(Default, Bundle, LdtkEntity)]
-struct ShowerBundle {
-    interactive: Interactive,
-    #[sprite_sheet_bundle]
-    sprite_sheet_bundle: SpriteSheetBundle,
-}
-
-#[derive(Default, Bundle, LdtkEntity)]
-struct RatBundle {
-    actor: Actor,
-    interactive: Interactive,
-    #[sprite_sheet_bundle]
-    sprite_sheet_bundle: SpriteSheetBundle,
-}
-#[derive(Default, Bundle, LdtkEntity)]
-struct BatBundle {
-    actor: Actor,
-    interactive: Interactive,
-    #[sprite_sheet_bundle]
-    sprite_sheet_bundle: SpriteSheetBundle,
-}
-#[derive(Default, Bundle, LdtkEntity)]
-struct CoinDoorBundle {
-    interactive: Interactive,
-    #[sprite_sheet_bundle]
-    sprite_sheet_bundle: SpriteSheetBundle,
-}
-
-#[derive(Default, Bundle, LdtkEntity)]
-struct BrokenCoinDoorBundle {
-    interactive: Interactive,
-    #[sprite_sheet_bundle]
-    sprite_sheet_bundle: SpriteSheetBundle,
-}
-
-#[derive(Default, Bundle, LdtkEntity)]
-struct SoiledMattressBundle {
-    interactive: Interactive,
-    #[sprite_sheet_bundle]
-    sprite_sheet_bundle: SpriteSheetBundle,
-}
-
-#[derive(Default, Component)]
-struct Interactive;
-#[derive(Default, Component)]
-struct Actor;
-
-#[derive(Default, Component)]
-struct Player;
-#[derive(Default, Bundle, LdtkEntity)]
-struct PlayerBundle {
-    actor: Actor,
-    interactive: Interactive,
-    player: Player,
-    #[sprite_sheet_bundle]
-    sprite_bundle: SpriteSheetBundle,
-    #[grid_coords]
-    grid_coords: GridCoords,
-}
-
-#[derive(Component)]
-struct UICamera2D;
-
-#[derive(Component)]
-struct MyCamera2D;
-#[derive(Component)]
-struct MyCamera3D;
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let mut camera2d = Camera2dBundle::default();
     //    let mut uicamera2d = Camera2dBundle::default();
