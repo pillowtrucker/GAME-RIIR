@@ -62,6 +62,8 @@ fn main() {
                 hint_color,
                 egui_fps,
                 ui_story_output,
+                fps_counter_showhide,
+                fps_text_update_system,
             ),
         )
         //        .add_systems(Startup, simple_editor_setup)
@@ -127,6 +129,11 @@ fn setup(
         transform: Transform::from_xyz(4.0, 8.0, 4.0),
         ..Default::default()
     });
+    let mut uicamera2d = Camera2dBundle::default();
+    uicamera2d.camera.order = 3;
+    uicamera2d.camera_2d.clear_color = ClearColorConfig::None;
+    uicamera2d.transform.translation.x = 1920. * 2.;
+    uicamera2d.transform.translation.y = 1080. * 2.;
 
     let mut camera2d = Camera2dBundle::default();
     //    let mut uicamera2d = Camera2dBundle::default();
@@ -137,15 +144,21 @@ fn setup(
 
     camera2d.camera.order = 2;
     camera3d.camera.order = 1;
+    //    uicamera2d.projection.scale = 2.;
     //    let uicamhandle = commands.spawn((uicamera2d, UICamera2D)).id();
-    commands.spawn((camera2d, MyCamera2D));
-
+    let c2dent = commands.spawn((camera2d, MyCamera2D)).id();
+    commands
+        .entity(c2dent)
+        .insert(UiCameraConfig { show_ui: false });
     let camera_pos = Vec3::new(-2.0, 2.5, 5.0);
     let camera_transform =
         Transform::from_translation(camera_pos).looking_at(CAMERA_TARGET, Vec3::Y);
     commands.insert_resource(OriginalCameraTransform(camera_transform));
 
     camera3d.transform = camera_transform;
+    //    let uic2dent = commands.spawn((uicamera2d, UICamera2D)).id();
+    //    let c3dent = commands.spawn((camera3d, MyCamera3D)).id();
+    commands.spawn((uicamera2d, UICamera2D));
     commands.spawn((camera3d, MyCamera3D));
     commands.spawn(LdtkWorldBundle {
         ldtk_handle: asset_server.load("ldtk/Therac2D.ldtk"),
@@ -163,6 +176,81 @@ fn setup(
     });
     */
     uistate.text_inhalt.push_str("ooga booga");
+    // create our UI root node
+    // this is the wrapper/container for the text
+    let root = commands
+        .spawn((
+            FpsRoot,
+            NodeBundle {
+                transform: Transform {
+                    translation: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    scale: Vec3 {
+                        x: 1.,
+                        y: 2.,
+                        z: 1.,
+                    },
+                },
+                // give it a dark background for readability
+                background_color: BackgroundColor(Color::BLACK.with_a(0.0)),
+                // make it "always on top" by setting the Z index to maximum
+                // we want it to be displayed over all other UI
+                z_index: ZIndex::Global(i32::MAX),
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    // position it at the top-right corner
+                    // 1% away from the top window edge
+                    right: Val::Auto,
+                    top: Val::Percent(25.),
+                    // set bottom/left to Auto, so it can be
+                    // automatically sized depending on the text
+                    bottom: Val::Auto,
+                    left: Val::Percent(25.),
+                    // give it some padding for readability
+                    padding: UiRect::all(Val::Px(4.0)),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ))
+        .id();
+    // create our text
+    let text_fps = commands
+        .spawn((
+            FpsText,
+            TextBundle {
+                // use two sections, so it is easy to update just the number
+                text: Text::from_sections([
+                    TextSection {
+                        value: "FPS: ".into(),
+                        style: TextStyle {
+                            font_size: 16.0,
+                            color: Color::WHITE,
+                            // if you want to use your game's font asset,
+                            // uncomment this and provide the handle:
+                            // font: my_font_handle
+                            ..default()
+                        },
+                    },
+                    TextSection {
+                        value: " N/A".into(),
+                        style: TextStyle {
+                            font_size: 16.0,
+                            color: Color::WHITE,
+                            // if you want to use your game's font asset,
+                            // uncomment this and provide the handle:
+                            // font: my_font_handle
+                            ..default()
+                        },
+                    },
+                ]),
+                ..Default::default()
+            },
+        ))
+        .id();
+    commands.entity(root).push_children(&[text_fps]);
+    //    commands.entity(uic2dent).push_children(&[root]);
+    //    commands.entity(c3dent).push_children(&[root]);
 }
 
 fn set_camera_viewports(
@@ -170,8 +258,12 @@ fn set_camera_viewports(
     //    mut fpsdings: Query<&mut Style, With<FpsRoot>>,
     mut resize_events: EventReader<WindowResized>,
     mut window_move_events: EventReader<WindowMoved>,
-    mut camera2d: Query<&mut Camera, (With<MyCamera2D>, Without<MyCamera3D>)>,
-    mut camera3d: Query<&mut Camera, (With<MyCamera3D>, Without<MyCamera2D>)>,
+    mut uicamera2d: Query<
+        &mut Camera,
+        (With<UICamera2D>, Without<MyCamera2D>, Without<MyCamera3D>),
+    >,
+    mut camera2d: Query<&mut Camera, (With<MyCamera2D>, Without<MyCamera3D>, Without<UICamera2D>)>,
+    mut camera3d: Query<&mut Camera, (With<MyCamera3D>, Without<MyCamera2D>, Without<UICamera2D>)>,
 ) {
     /*
     We need to dynamically resize the camera's viewports whenever the window size changes
@@ -182,16 +274,21 @@ fn set_camera_viewports(
         let window = windows.get(resize_event.window).unwrap();
         let mut camera2d = camera2d.single_mut();
         let mut camera3d = camera3d.single_mut();
+        let mut uicamera2d = uicamera2d.single_mut();
 
         camera3d.viewport = Some(Viewport {
-            physical_position: UVec2::new(
-                //                window.resolution.physical_width() / 2,
-                0,
-                window.resolution.physical_height() / 2,
-            ),
+            physical_position: UVec2::new(window.resolution.physical_width() / 2, 0),
             physical_size: UVec2 {
                 x: window.resolution.physical_width() / 2,
-                y: window.resolution.physical_height() / 2,
+                y: window.resolution.physical_height(),
+            },
+            ..default()
+        });
+        uicamera2d.viewport = Some(Viewport {
+            physical_position: UVec2::new(window.resolution.physical_width() / 2, 0),
+            physical_size: UVec2 {
+                x: window.resolution.physical_width() / 2,
+                y: window.resolution.physical_height(),
             },
             ..default()
         });
@@ -209,16 +306,20 @@ fn set_camera_viewports(
         let mut camera2d = camera2d.single_mut();
 
         let mut camera3d = camera3d.single_mut();
-
+        let mut uicamera2d = uicamera2d.single_mut();
         camera3d.viewport = Some(Viewport {
-            physical_position: UVec2::new(
-                //                window.resolution.physical_width() / 2,
-                0,
-                window.resolution.physical_height() / 2,
-            ),
+            physical_position: UVec2::new(window.resolution.physical_width() / 2, 0),
             physical_size: UVec2 {
                 x: window.resolution.physical_width() / 2,
-                y: window.resolution.physical_height() / 2,
+                y: window.resolution.physical_height(),
+            },
+            ..default()
+        });
+        uicamera2d.viewport = Some(Viewport {
+            physical_position: UVec2::new(window.resolution.physical_width() / 2, 0),
+            physical_size: UVec2 {
+                x: window.resolution.physical_width() / 2,
+                y: window.resolution.physical_height(),
             },
             ..default()
         });
@@ -294,12 +395,12 @@ fn ui_story_output(
         .interactable(false)
         .frame(Frame::none())
         .fixed_pos(Pos2 {
-            x: pwindow_w as f32 / 2.0,
+            x: 0.,
             y: pwindow_h as f32 / 2.0,
         })
         .fixed_size(egui::Vec2 {
             x: pwindow_w as f32 / 2.0,
-            y: pwindow_h as f32 / 1.0,
+            y: pwindow_h as f32 / 2.0,
         })
         .show(ctx, |ui| {
             ui.add_sized(
@@ -311,4 +412,62 @@ fn ui_story_output(
 #[derive(Default, Resource)]
 struct UiStateStoryOutput {
     text_inhalt: String,
+}
+
+/// Marker to find the container entity so we can show/hide the FPS counter
+#[derive(Component)]
+struct FpsRoot;
+
+/// Marker to find the text entity so we can update it
+#[derive(Component)]
+struct FpsText;
+
+fn fps_text_update_system(
+    diagnostics: Res<DiagnosticsStore>,
+    mut query: Query<&mut Text, With<FpsText>>,
+) {
+    for mut text in &mut query {
+        // try to get a "smoothed" FPS value from Bevy
+        if let Some(value) = diagnostics
+            .get(FrameTimeDiagnosticsPlugin::FPS)
+            .and_then(|fps| fps.smoothed())
+        {
+            // Format the number as to leave space for 4 digits, just in case,
+            // right-aligned and rounded. This helps readability when the
+            // number changes rapidly.
+            text.sections[1].value = format!("{value:>4.0}");
+
+            // Let's make it extra fancy by changing the color of the
+            // text according to the FPS value:
+            text.sections[1].style.color = if value >= 120.0 {
+                // Above 120 FPS, use green color
+                Color::rgb(0.0, 1.0, 0.0)
+            } else if value >= 60.0 {
+                // Between 60-120 FPS, gradually transition from yellow to green
+                Color::rgb((1.0 - (value - 60.0) / (120.0 - 60.0)) as f32, 1.0, 0.0)
+            } else if value >= 30.0 {
+                // Between 30-60 FPS, gradually transition from red to yellow
+                Color::rgb(1.0, ((value - 30.0) / (60.0 - 30.0)) as f32, 0.0)
+            } else {
+                // Below 30 FPS, use red color
+                Color::rgb(1.0, 0.0, 0.0)
+            }
+        } else {
+            // display "N/A" if we can't get a FPS measurement
+            // add an extra space to preserve alignment
+            text.sections[1].value = " N/A".into();
+            text.sections[1].style.color = Color::WHITE;
+        }
+    }
+}
+
+/// Toggle the FPS counter when pressing F12
+fn fps_counter_showhide(mut q: Query<&mut Visibility, With<FpsRoot>>, kbd: Res<Input<KeyCode>>) {
+    if kbd.just_pressed(KeyCode::F12) {
+        let mut vis = q.single_mut();
+        *vis = match *vis {
+            Visibility::Hidden => Visibility::Visible,
+            _ => Visibility::Hidden,
+        };
+    }
 }

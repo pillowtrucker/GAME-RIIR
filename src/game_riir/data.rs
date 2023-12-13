@@ -129,3 +129,6 @@ pub(crate) struct PlayerBundle {
 pub(crate) struct MyCamera2D;
 #[derive(Component)]
 pub(crate) struct MyCamera3D;
+
+#[derive(Component)]
+pub(crate) struct UICamera2D;
