@@ -12,17 +12,21 @@ use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
     render::camera::Viewport,
+    utils::HashMap,
     window::{
         PresentMode, PrimaryWindow, WindowMode, WindowResized, WindowResolution, WindowTheme,
     },
 };
+use bevy_asset_loader::asset_collection::{AssetCollection, AssetCollectionApp};
 use bevy_ecs_ldtk::{app::LdtkEntityAppExt, LdtkPlugin, LdtkWorldBundle, LevelSelection};
 use bevy_egui::{
-    egui::{self, Color32, Frame, Pos2, Visuals},
+    egui::{self, Color32, Frame, Pos2, RichText, Visuals},
     EguiContexts, EguiPlugin,
 };
 use game_riir::data::*;
+use rand::Rng;
 //use space_editor::{simple_editor_setup, SpaceEditorPlugin};
+
 fn main() {
     App::new()
         .add_plugins((
@@ -52,6 +56,8 @@ fn main() {
             //            SpaceEditorPlugin::default(),
         ))
         .init_resource::<UiStateStoryOutput>()
+        .init_asset::<MyText>()
+        .init_collection::<MyTextCollection>()
         .add_plugins(EguiPlugin)
         .add_systems(Startup, (setup,))
         .add_systems(
@@ -62,8 +68,6 @@ fn main() {
                 hint_color,
                 egui_fps,
                 ui_story_output,
-                fps_counter_showhide,
-                fps_text_update_system,
             ),
         )
         //        .add_systems(Startup, simple_editor_setup)
@@ -89,7 +93,7 @@ fn egui_fps(mut contexts: EguiContexts, diagnostics: Res<DiagnosticsStore>) {
         .and_then(|fps| fps.smoothed())
     {
         egui::Window::new("FPS").show(contexts.ctx_mut(), |ui| {
-            ui.label(format!("{:.3}", value));
+            ui.label(RichText::new(format!("{:.3}", value)))
         });
     }
 }
@@ -97,13 +101,24 @@ const CAMERA_TARGET: Vec3 = Vec3::ZERO;
 
 #[derive(Resource, Deref, DerefMut)]
 struct OriginalCameraTransform(Transform);
+#[derive(Asset, Default, Resource, TypePath, Clone)]
+struct MyText {
+    body: String,
+}
+#[derive(AssetCollection, Resource, Deref, DerefMut)]
+struct MyTextCollection {
+    #[asset(paths("texts/PARADISE_LOST.txt"), collection(typed, mapped))]
+    texts: HashMap<String, Handle<MyText>>,
+}
 
 fn setup(
     mut uistate: ResMut<UiStateStoryOutput>,
-    //    mut contexts: EguiContexts,
+    mut contexts: EguiContexts,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mytextmap: Res<MyTextCollection>,
+    mytexts: Res<Assets<MyText>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     commands.spawn(PbrBundle {
@@ -164,7 +179,7 @@ fn setup(
         ldtk_handle: asset_server.load("ldtk/Therac2D.ldtk"),
         ..default()
     });
-    /*
+
     let ctx = contexts.ctx_mut();
     ctx.set_visuals(Visuals {
         panel_fill: Color32::TRANSPARENT,
@@ -174,81 +189,13 @@ fn setup(
         faint_bg_color: Color32::TRANSPARENT,
         ..default()
     });
-    */
-    uistate.text_inhalt.push_str("ooga booga");
-    // create our UI root node
-    // this is the wrapper/container for the text
-    let root = commands
-        .spawn((
-            FpsRoot,
-            NodeBundle {
-                transform: Transform {
-                    translation: Vec3::ZERO,
-                    rotation: Quat::IDENTITY,
-                    scale: Vec3 {
-                        x: 1.,
-                        y: 2.,
-                        z: 1.,
-                    },
-                },
-                // give it a dark background for readability
-                background_color: BackgroundColor(Color::BLACK.with_a(0.0)),
-                // make it "always on top" by setting the Z index to maximum
-                // we want it to be displayed over all other UI
-                z_index: ZIndex::Global(i32::MAX),
-                style: Style {
-                    position_type: PositionType::Absolute,
-                    // position it at the top-right corner
-                    // 1% away from the top window edge
-                    right: Val::Auto,
-                    top: Val::Percent(25.),
-                    // set bottom/left to Auto, so it can be
-                    // automatically sized depending on the text
-                    bottom: Val::Auto,
-                    left: Val::Percent(25.),
-                    // give it some padding for readability
-                    padding: UiRect::all(Val::Px(4.0)),
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-        ))
-        .id();
-    // create our text
-    let text_fps = commands
-        .spawn((
-            FpsText,
-            TextBundle {
-                // use two sections, so it is easy to update just the number
-                text: Text::from_sections([
-                    TextSection {
-                        value: "FPS: ".into(),
-                        style: TextStyle {
-                            font_size: 16.0,
-                            color: Color::WHITE,
-                            // if you want to use your game's font asset,
-                            // uncomment this and provide the handle:
-                            // font: my_font_handle
-                            ..default()
-                        },
-                    },
-                    TextSection {
-                        value: " N/A".into(),
-                        style: TextStyle {
-                            font_size: 16.0,
-                            color: Color::WHITE,
-                            // if you want to use your game's font asset,
-                            // uncomment this and provide the handle:
-                            // font: my_font_handle
-                            ..default()
-                        },
-                    },
-                ]),
-                ..Default::default()
-            },
-        ))
-        .id();
-    commands.entity(root).push_children(&[text_fps]);
+    let mut rng = rand::thread_rng();
+    let pl_handle = &mytextmap.texts["texts/PARADISE_LOST.txt"];
+    let pl = &mytexts.get(pl_handle).unwrap().body;
+    let good_number = rng.gen_range(0..pl.lines().count());
+    let random_fragment = pl.lines().collect::<Vec<_>>()[good_number..good_number + 66].to_owned();
+    uistate.text_inhalt.push_str(&random_fragment.join("\n"));
+
     //    commands.entity(uic2dent).push_children(&[root]);
     //    commands.entity(c3dent).push_children(&[root]);
 }
@@ -387,6 +334,7 @@ fn ui_story_output(
     mut contexts: EguiContexts,
 ) {
     let ctx = contexts.ctx_mut();
+
     let w = pwindow.single();
     let pwindow_h = w.resolution.physical_height();
     let pwindow_w = w.resolution.physical_width();
@@ -395,12 +343,12 @@ fn ui_story_output(
         .interactable(false)
         .frame(Frame::none())
         .fixed_pos(Pos2 {
-            x: 0.,
+            x: pwindow_w as f32 / 2.0,
             y: pwindow_h as f32 / 2.0,
         })
         .fixed_size(egui::Vec2 {
             x: pwindow_w as f32 / 2.0,
-            y: pwindow_h as f32 / 2.0,
+            y: pwindow_h as f32,
         })
         .show(ctx, |ui| {
             ui.add_sized(
@@ -412,62 +360,4 @@ fn ui_story_output(
 #[derive(Default, Resource)]
 struct UiStateStoryOutput {
     text_inhalt: String,
-}
-
-/// Marker to find the container entity so we can show/hide the FPS counter
-#[derive(Component)]
-struct FpsRoot;
-
-/// Marker to find the text entity so we can update it
-#[derive(Component)]
-struct FpsText;
-
-fn fps_text_update_system(
-    diagnostics: Res<DiagnosticsStore>,
-    mut query: Query<&mut Text, With<FpsText>>,
-) {
-    for mut text in &mut query {
-        // try to get a "smoothed" FPS value from Bevy
-        if let Some(value) = diagnostics
-            .get(FrameTimeDiagnosticsPlugin::FPS)
-            .and_then(|fps| fps.smoothed())
-        {
-            // Format the number as to leave space for 4 digits, just in case,
-            // right-aligned and rounded. This helps readability when the
-            // number changes rapidly.
-            text.sections[1].value = format!("{value:>4.0}");
-
-            // Let's make it extra fancy by changing the color of the
-            // text according to the FPS value:
-            text.sections[1].style.color = if value >= 120.0 {
-                // Above 120 FPS, use green color
-                Color::rgb(0.0, 1.0, 0.0)
-            } else if value >= 60.0 {
-                // Between 60-120 FPS, gradually transition from yellow to green
-                Color::rgb((1.0 - (value - 60.0) / (120.0 - 60.0)) as f32, 1.0, 0.0)
-            } else if value >= 30.0 {
-                // Between 30-60 FPS, gradually transition from red to yellow
-                Color::rgb(1.0, ((value - 30.0) / (60.0 - 30.0)) as f32, 0.0)
-            } else {
-                // Below 30 FPS, use red color
-                Color::rgb(1.0, 0.0, 0.0)
-            }
-        } else {
-            // display "N/A" if we can't get a FPS measurement
-            // add an extra space to preserve alignment
-            text.sections[1].value = " N/A".into();
-            text.sections[1].style.color = Color::WHITE;
-        }
-    }
-}
-
-/// Toggle the FPS counter when pressing F12
-fn fps_counter_showhide(mut q: Query<&mut Visibility, With<FpsRoot>>, kbd: Res<Input<KeyCode>>) {
-    if kbd.just_pressed(KeyCode::F12) {
-        let mut vis = q.single_mut();
-        *vis = match *vis {
-            Visibility::Hidden => Visibility::Visible,
-            _ => Visibility::Hidden,
-        };
-    }
 }
