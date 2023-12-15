@@ -7,6 +7,8 @@
 
 mod game_riir;
 
+use std::process::exit;
+
 use bevy::{
     asset::{
         io::{AssetReaderError, Reader},
@@ -16,28 +18,23 @@ use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
     render::camera::Viewport,
-    utils::HashMap,
     window::{
         PresentMode, PrimaryWindow, WindowMode, WindowResized, WindowResolution, WindowTheme,
     },
 };
-use bevy_asset_loader::{
-    asset_collection::{AssetCollection, AssetCollectionApp},
-    loading_state::{LoadingState, LoadingStateAppExt, LoadingStateSet},
-};
+
 use bevy_ecs_ldtk::{app::LdtkEntityAppExt, LdtkPlugin, LdtkWorldBundle, LevelSelection};
 use bevy_egui::{
     egui::{self, Color32, Frame, Pos2, RichText, Visuals},
     EguiContexts, EguiPlugin,
 };
 use game_riir::data::*;
-use iyes_progress::{Progress, ProgressCounter, ProgressPlugin, ProgressSystem};
+
 use rand::Rng;
 //use space_editor::{simple_editor_setup, SpaceEditorPlugin};
-use bevy_asset_loader::prelude::*;
+
 fn main() {
     App::new()
-        .add_state::<GameState>()
         .add_plugins((
             DefaultPlugins
                 .set(WindowPlugin {
@@ -62,27 +59,14 @@ fn main() {
             //            LogDiagnosticsPlugin::default(),
             FrameTimeDiagnosticsPlugin,
             LdtkPlugin,
-            ProgressPlugin::new(GameState::AssetLoading).continue_to(GameState::InGame),
             //            SpaceEditorPlugin::default(),
         ))
-        .add_loading_state(LoadingState::new(GameState::AssetLoading))
-        .add_collection_to_loading_state::<_, MyTextCollection>(GameState::AssetLoading)
         //        .init_resource::<MyTextCollection>()
-        .init_resource::<ProgressCounter>()
         .init_resource::<UiStateStoryOutput>()
         .init_asset_loader::<MyTextLoader>()
         .init_asset::<MyText>()
         .add_plugins(EguiPlugin)
-        .add_systems(
-            Startup,
-            (
-                (track_texts_loading.track_progress(), print_progress)
-                    .chain()
-                    .run_if(in_state(GameState::AssetLoading))
-                    .after(LoadingStateSet(GameState::AssetLoading)),
-                setup.after(LoadingStateSet(GameState::AssetLoading)),
-            ),
-        )
+        .add_systems(Startup, (setup,))
         .add_systems(
             Update,
             (
@@ -110,44 +94,7 @@ fn main() {
         .register_ldtk_entity::<BrokenCoinDoorBundle>("BrokenCoinDoor")
         .run();
 }
-fn print_progress(
-    progress: Option<Res<ProgressCounter>>,
-    diagnostics: Res<DiagnosticsStore>,
-    mut last_done: Local<u32>,
-) {
-    if let Some(progress) = progress.map(|counter| counter.progress()) {
-        if progress.done > *last_done {
-            *last_done = progress.done;
-            info!(
-                "[Frame {}] Changed progress: {:?}",
-                diagnostics
-                    .get(FrameTimeDiagnosticsPlugin::FRAME_COUNT)
-                    .map(|diagnostic| diagnostic.value().unwrap_or(0.))
-                    .unwrap_or(0.),
-                progress
-            );
-        }
-    }
-}
-fn track_texts_loading(
-    asset_server: Res<AssetServer>,
-    mytextmap_o: Option<Res<MyTextCollection>>,
-) -> Progress {
-    match mytextmap_o {
-        Some(mytextmap) => {
-            info!("{:?}", mytextmap.texts);
-            let pl_handle = &mytextmap.texts["texts/PARADISE_LOST.txt"];
-            let fuck_this_bullshit = asset_server.get_load_state(pl_handle).unwrap();
-            if fuck_this_bullshit == LoadState::Loaded {
-                info!("Loading text assets complete");
-                true.into()
-            } else {
-                false.into()
-            }
-        }
-        None => false.into(),
-    }
-}
+
 fn egui_fps(mut contexts: EguiContexts, diagnostics: Res<DiagnosticsStore>) {
     if let Some(value) = diagnostics
         .get(FrameTimeDiagnosticsPlugin::FPS)
@@ -159,12 +106,7 @@ fn egui_fps(mut contexts: EguiContexts, diagnostics: Res<DiagnosticsStore>) {
     }
 }
 const CAMERA_TARGET: Vec3 = Vec3::ZERO;
-#[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
-enum GameState {
-    #[default]
-    AssetLoading,
-    InGame,
-}
+
 #[derive(Resource, Deref, DerefMut)]
 struct OriginalCameraTransform(Transform);
 #[derive(Default)]
@@ -178,39 +120,35 @@ impl AssetLoader for MyTextLoader {
     fn extensions(&self) -> &[&str] {
         &["txt"]
     }
-
     fn load<'a>(
         &'a self,
         reader: &'a mut Reader,
-        settings: &'a Self::Settings,
-        load_context: &'a mut LoadContext,
+        _settings: &'a Self::Settings,
+        _load_context: &'a mut LoadContext,
     ) -> bevy::utils::BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
         Box::pin(async move {
             let mut the_body = String::new();
+
             reader.read_to_string(&mut the_body).await?;
-            Ok(MyText { body: the_body })
+            Ok(MyText {
+                title: the_body.lines().collect::<Vec<_>>()[0].to_owned(),
+                body: the_body,
+            })
         })
     }
 }
 
 #[derive(Asset, Default, Resource, TypePath, Clone)]
 struct MyText {
+    title: String,
     body: String,
-}
-#[derive(AssetCollection, Resource, Deref, DerefMut, Default)]
-struct MyTextCollection {
-    #[asset(paths("texts/PARADISE_LOST.txt"), collection(typed, mapped))]
-    texts: HashMap<String, Handle<MyText>>,
 }
 
 fn setup(
-    mut uistate: ResMut<UiStateStoryOutput>,
     mut contexts: EguiContexts,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mytextmap: Res<MyTextCollection>,
-    mytexts: Res<Assets<MyText>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     commands.spawn(PbrBundle {
@@ -282,14 +220,8 @@ fn setup(
         ..default()
     });
 
-    let mut rng = rand::thread_rng();
-    let pl_handle = &mytextmap.texts["texts/PARADISE_LOST.txt"];
-    let fuck_this_bullshit = asset_server.get_load_state(pl_handle).unwrap();
-    let pl = &mytexts.get(pl_handle).unwrap().body;
-    let good_number = rng.gen_range(0..pl.lines().count());
-    let random_fragment = pl.lines().collect::<Vec<_>>()[good_number..good_number + 66].to_owned();
-    uistate.text_inhalt.push_str(&random_fragment.join("\n"));
-
+    let hooga: Handle<MyText> = asset_server.load("texts/PARADISE_LOST.txt");
+    commands.spawn(hooga);
     //    commands.entity(uic2dent).push_children(&[root]);
     //    commands.entity(c3dent).push_children(&[root]);
 }
@@ -426,9 +358,28 @@ fn ui_story_output(
     mut uistate: ResMut<UiStateStoryOutput>,
     pwindow: Query<&Window, With<PrimaryWindow>>,
     mut contexts: EguiContexts,
+    asset_server: Res<AssetServer>,
+    mytexts: Res<Assets<MyText>>,
 ) {
     let ctx = contexts.ctx_mut();
-
+    let pl_handle = asset_server.get_handle("texts/PARADISE_LOST.txt");
+    if let Some(pl_handle) = pl_handle {
+        if uistate.text_inhalt.is_empty() {
+            let fuck = asset_server.load_state(&pl_handle);
+            match fuck {
+                LoadState::Failed => exit(1),
+                LoadState::Loaded => {
+                    let mut rng = rand::thread_rng();
+                    let pl = &mytexts.get(pl_handle).unwrap().body;
+                    let good_number = rng.gen_range(0..pl.lines().count());
+                    let random_fragment =
+                        pl.lines().collect::<Vec<_>>()[good_number..good_number + 66].to_owned();
+                    uistate.text_inhalt.push_str(&random_fragment.join("\n"));
+                }
+                _ => {}
+            }
+        }
+    }
     let w = pwindow.single();
     let pwindow_h = w.resolution.physical_height();
     let pwindow_w = w.resolution.physical_width();
