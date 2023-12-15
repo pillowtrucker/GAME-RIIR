@@ -18,10 +18,11 @@ opt-level = 3
 [dependencies]
 bevy = "0.12"
 bevy_ecs_ldtk = { version = "0.8", git = "https://github.com/trouv/bevy_ecs_ldtk", branch = "feat/bevy-0.12" }
-bevy_hanabi = "0.8"
+#bevy_hanabi = "0.8"
 bevy_egui = "0.24"
 bevy_asset_loader = "0.18.0"
 rand = "0.8.5"
+iyes_progress = { git = "https://github.com/IyesGames/iyes_progress", branch = "main" }
 [patch.crates-io]
 bevy_ecs_tilemap = { git = "https://github.com/divark/bevy_ecs_tilemap", branch = "0.12-fixes" }
 
